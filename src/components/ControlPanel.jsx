@@ -10,7 +10,7 @@ const LIMITS = {
 const PRESETS = [
   { name: 'Home', x: 0, y: 0, z: 0 },
   { name: 'Safe', x: 150, y: 150, z: 0 },
-  { name: 'Top', x: 150, y: 150, z: 0 },
+  { name: 'Top', x: 150, y: 150, z: 20 },
   { name: 'Bottom', x: 150, y: 150, z: 100 },
   { name: 'Work1', x: 100, y: 100, z: 50 },
   { name: 'Work2', x: 200, y: 200, z: 50 },
