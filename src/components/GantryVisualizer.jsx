@@ -1,9 +1,12 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import './GantryVisualizer.css';
 
-// ─── Canvas dimensions ───────────────────────────────────────────────────────
+// ─── Base image and canvas dimensions ─────────────────────────────────────────
+const BASE_IMAGE = { w: 1617, h: 1035 };
 const CANVAS_W = 900;
-const CANVAS_H = 600;
+const SCALE = CANVAS_W / BASE_IMAGE.w;
+const CANVAS_H = Math.round(BASE_IMAGE.h * SCALE);
+const scale = (value) => value * SCALE;
 
 // ─── Machine coordinate limits ───────────────────────────────────────────────
 const COORD = {
@@ -12,25 +15,32 @@ const COORD = {
   z: { min: 0, max: 100 },
 };
 
-// ─── Movement configuration (canvas pixels) ──────────────────────────────────
-// These values map machine coordinates to pixel offsets on the 900×600 canvas.
-// The large platform images (1617×1035 RGBA) are drawn scaled to 900×600;
-// each axis "slides" its layer by the pixel offset calculated below.
+// ─── Movement configuration (base image pixels) ──────────────────────────────
+// Values are defined in the original 1617×1035 image space and scaled to the
+// canvas to keep alignment consistent across sizes.
 const MOVEMENT = {
-  // X-axis: traverse rail slides horizontally 0 → 280 px
-  xPixels: 280,
-  // Y-axis: carriage depth-perspective offset (diagonal): 0 → 30 px right + 20 px down
-  yPixelsX: 30,
-  yPixelsY: 20,
-  // Z-axis: z-assembly rises upward 0 → 160 px
-  zPixels: 160,
+  // X-axis: traverse rail slides horizontally
+  xPixels: 503.07,
+  // Y-axis: carriage depth-perspective offset (diagonal)
+  yPixelsX: 53.9,
+  yPixelsY: 35.93,
+  // Z-axis: z-assembly rises upward
+  zPixels: 287.47,
 };
 
-// Overlay draw sizes (canvas pixels)
+// Overlay draw sizes (base image pixels)
 const OVERLAY = {
-  bleu:   { w: 201, h: 152 },   // 402×303 original → half size
-  gauche: { w: 95,  h: 54  },   // 189×108 original → half size
-  droit:  { w: 59,  h: 24  },   // 118×48  original → half size
+  bleu:   { w: 402, h: 303 },
+  gauche: { w: 189, h: 108 },
+  droit:  { w: 118, h: 48  },
+};
+
+// Overlay positional offsets (base image pixels)
+const OVERLAY_OFFSET = {
+  gaucheY: 413.23,
+  droitY: 422.22,
+  bleuY: 431.2,
+  bleuX: 682.73,
 };
 
 // ─── Helper: linear map with clamp ───────────────────────────────────────────
@@ -72,10 +82,10 @@ export default function GantryVisualizer({ position, isAnimating }) {
 
   // ── compute canvas-space pixel offsets from machine coordinates ────────────
   const computeOffsets = useCallback((pos) => {
-    const xOff = mapRange(pos.x, COORD.x.min, COORD.x.max, 0, MOVEMENT.xPixels);
-    const yOffX = mapRange(pos.y, COORD.y.min, COORD.y.max, 0, MOVEMENT.yPixelsX);
-    const yOffY = mapRange(pos.y, COORD.y.min, COORD.y.max, 0, MOVEMENT.yPixelsY);
-    const zOff  = mapRange(pos.z, COORD.z.min, COORD.z.max, 0, MOVEMENT.zPixels);
+    const xOff = mapRange(pos.x, COORD.x.min, COORD.x.max, 0, scale(MOVEMENT.xPixels));
+    const yOffX = mapRange(pos.y, COORD.y.min, COORD.y.max, 0, scale(MOVEMENT.yPixelsX));
+    const yOffY = mapRange(pos.y, COORD.y.min, COORD.y.max, 0, scale(MOVEMENT.yPixelsY));
+    const zOff  = mapRange(pos.z, COORD.z.min, COORD.z.max, 0, scale(MOVEMENT.zPixels));
     return { xOff, yOffX, yOffY, zOff };
   }, []);
 
@@ -93,6 +103,9 @@ export default function GantryVisualizer({ position, isAnimating }) {
     // Carriage screen position (for overlays & HUD)
     const carriageScreenX = xOff + yOffX;
     const carriageScreenY = yOffY;
+    const overlayGauche = { w: scale(OVERLAY.gauche.w), h: scale(OVERLAY.gauche.h) };
+    const overlayDroit = { w: scale(OVERLAY.droit.w), h: scale(OVERLAY.droit.h) };
+    const overlayBleu = { w: scale(OVERLAY.bleu.w), h: scale(OVERLAY.bleu.h) };
 
     // ── 1. Background ─────────────────────────────────────────────────────
     if (imgs.bg) {
@@ -126,32 +139,32 @@ export default function GantryVisualizer({ position, isAnimating }) {
     // ── 5. Overlay – chariot gauche (left carriage depth) ─────────────────
     if (imgs.overlayGauche) {
       // anchored slightly left of carriage, at fixed Y depth
-      const ox = carriageScreenX - OVERLAY.gauche.w * 0.6;
-      const oy = carriageScreenY + 230 + yOffY * 0.4;
+      const ox = carriageScreenX - overlayGauche.w * 0.6;
+      const oy = carriageScreenY + scale(OVERLAY_OFFSET.gaucheY) + yOffY * 0.4;
       ctx.save();
       ctx.globalAlpha = 0.45;
-      ctx.drawImage(imgs.overlayGauche, ox, oy, OVERLAY.gauche.w, OVERLAY.gauche.h);
+      ctx.drawImage(imgs.overlayGauche, ox, oy, overlayGauche.w, overlayGauche.h);
       ctx.restore();
     }
 
     // ── 6. Overlay – chariot droit (right carriage depth) ─────────────────
     if (imgs.overlayDroit) {
-      const ox = carriageScreenX + OVERLAY.droit.w * 0.3;
-      const oy = carriageScreenY + 235 + yOffY * 0.4;
+      const ox = carriageScreenX + overlayDroit.w * 0.3;
+      const oy = carriageScreenY + scale(OVERLAY_OFFSET.droitY) + yOffY * 0.4;
       ctx.save();
       ctx.globalAlpha = 0.45;
-      ctx.drawImage(imgs.overlayDroit, ox, oy, OVERLAY.droit.w, OVERLAY.droit.h);
+      ctx.drawImage(imgs.overlayDroit, ox, oy, overlayDroit.w, overlayDroit.h);
       ctx.restore();
     }
 
     // ── 7. Overlay – chariot bleu (blue carriage front) ───────────────────
     if (imgs.overlayBleu) {
       // Centered on carriage X, at lower vertical position
-      const ox = carriageScreenX + 380 - OVERLAY.bleu.w / 2;
-      const oy = carriageScreenY + 240 - zOff * 0.15;
+      const ox = carriageScreenX + scale(OVERLAY_OFFSET.bleuX) - overlayBleu.w / 2;
+      const oy = carriageScreenY + scale(OVERLAY_OFFSET.bleuY) - zOff * 0.15;
       ctx.save();
       ctx.globalAlpha = 0.40;
-      ctx.drawImage(imgs.overlayBleu, ox, oy, OVERLAY.bleu.w, OVERLAY.bleu.h);
+      ctx.drawImage(imgs.overlayBleu, ox, oy, overlayBleu.w, overlayBleu.h);
       ctx.restore();
     }
 
